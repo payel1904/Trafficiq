@@ -17,7 +17,7 @@ machine-learning pipeline.
 | Stage | Question it answers | Method |
 |-------|--------------------|--------|
 | **1 · Detect** | *Where are the true hotspots?* | **DBSCAN** spatial clustering (haversine metric) groups violations into geographic hotspots and discards scattered noise. |
-| **2 · Quantify** | *Which hotspots actually hurt traffic?* | A transparent **Congestion-Impact Score (CIS)** blends volume, dwell-time, junction proximity, peak-hour concentration and vehicle footprint into a single **0–100** priority index. |
+| **2 · Quantify** | *Which hotspots actually hurt traffic?* | A transparent **Congestion-Risk-Index (CRI)** blends volume, dwell-time, junction proximity, peak-hour concentration and vehicle footprint into a single **0–100** priority index. |
 | **3 · Target** | *When should we send patrols?* | A leakage-free **spatio-temporal demand forecaster** predicts violations per zone per hour, producing a *where + when* dispatch schedule. |
 
 The final output is a ranked **dispatch table** (which hotspot, which day, which 3-hour window),
@@ -40,23 +40,12 @@ from guesswork to data-driven deployment.
 
 ---
 
-## 📊 The Congestion-Impact Score (CIS)
+## 📊 The Congestion-Risk Index (CRI)
 
 A raw violation *count* is not congestion: a bus blocking a junction at 6 PM hurts far more than
 ten scooters on an empty side-street at noon. The CIS captures that:
 
-$$\text{CIS} = 100 \times \big(0.40\,V + 0.20\,D + 0.20\,J + 0.12\,P + 0.08\,F\big)$$
-
-| Symbol | Driver | Why it reduces traffic flow |
-|:--:|---|---|
-| `V` | **Volume** (log-scaled) | chronic, repeated obstruction pressure |
-| `D` | **Duration** | how long each vehicle actually blocks the road |
-| `J` | **Junction share** | blocking a junction backs up *all* directions |
-| `P` | **Peak-hour share** | impact is worst when roads are already full |
-| `F` | **Vehicle footprint** | larger vehicles block more carriageway width |
-
-Each driver is min-max normalised to `[0, 1]`, so the score is bounded **0–100** and comparable
-across the city. Hotspots are then tiered **Low / Medium / High / Critical**.
+$$\text{CRI} =(ViolationCount * VehicleWeight * JunctionFlag * TimePeakFactor)$$
 
 ---
 
@@ -64,8 +53,8 @@ across the city. Hotspots are then tiered **Low / Medium / High / Critical**.
 
 - **Source:** [Traffic Bangalore dataset](https://www.kaggle.com/datasets/jyotismritabasisthya/traffic-bangalore) (Kaggle)
 - **Scale:** ~250k+ parking-violation records
-- **Key fields used:** `created_datetime`, `closed_datetime`, `latitude`, `longitude`,
-  `vehicle_type`, `violation_type`, `junction_name`, `police_station`, `center_code`
+- **Key fields used:** `latitude`, `longitude`,
+  `vehicle_type`, `violation_type`, `junction_name`, `police_station`, `center_code`,`location`,`data_sent_to_scita`
 
 ---
 
@@ -101,7 +90,7 @@ Running the notebook writes the following to the working directory:
 
 | File | Contents |
 |---|---|
-| `hotspot_impact_scores.csv` | Every detected hotspot with its CIS, tier and drivers |
+| `hotspot_impact_scores.csv` | Every detected hotspot with its CRI, tier and drivers |
 | `enforcement_priorities.csv` | Ranked dispatch table: **where + when** to deploy |
 | `demand_forecaster.joblib` | The trained forecasting model + feature list |
 | `parking_hotspots_map.html` | Standalone interactive Folium dispatch map |
@@ -121,7 +110,7 @@ Running the notebook writes the following to the working directory:
 ## ⚠️ Limitations & next steps
 
 - Volume is a **proxy** for congestion; integrating live **speed / GPS-probe** data would calibrate
-  the CIS against measured delay.
+  the CRI against measured delay.
 - The window spans ~6 months; a full year would expose monsoon / seasonal effects.
 - **Next:** live camera / ANPR ingestion, an alerting micro-service, and feedback loops that learn
   from enforcement outcomes.
